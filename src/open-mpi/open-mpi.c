@@ -18,18 +18,48 @@ struct FreqMatrix
     double complex mat[MAX_N][MAX_N];
 };
  
-double complex dft(struct Matrix *mat, int k, int l)
+double complex fft(struct Matrix *mat, int k, int l)
 {
+    // Rumus 2D FFT
+    // F[k,l] = 1/MN * { 
+    // sum(sum(f[m,n] * e^((-2*pi*i) * (k*m/M + l*n/N))) +                              for calculate even row and even column
+    // sum(sum(f[m,n] * e^((-2*pi*i) * (k*m/M + l*n/N)) * e^((-2*pi*i) * (l/N))) +      for calculate even row and odd column
+    // sum(sum(f[m,n] * e^((-2*pi*i) * (k*m/M + l*n/N)) * e^((-2*pi*i) * (k/M))) +      for calculate odd row and even column
+    // sum(sum(f[m,n] * e^((-2*pi*i) * (k*m/M + l*n/N)) * e^((-2*pi*i) * ((l+k)/M)))    for calculate odd row and odd column
+    // }
+    // arg for even row and even column
+    // 0
+    // arg for even row and odd column
+    double complex arg_even_odd = (l / (double)mat->size);
+    // arg for odd row and even column
+    double complex arg_odd_even = (k / (double)mat->size);
+    // arg for odd row and odd column
+    double complex arg_odd_odd  = ((k + l) / (double)mat->size);
+
+    // var for even row and even column
+    // 1
+    // var for even row and odd column
+    double complex var_even_odd = cexp(-2.0I * M_PI * arg_even_odd);
+    // var for odd row and even column
+    double complex var_odd_even = cexp(-2.0I * M_PI * arg_odd_even);
+    // var for odd row and odd column
+    double complex var_odd_odd  = cexp(-2.0I * M_PI * arg_odd_odd);
+
     double complex element = 0.0;
-    for (int m = 0; m < mat->size; m++)
+    for (int m = 0; m < mat->size/2; m++)
     {
-        for (int n = 0; n < mat->size; n++)
+        for (int n = 0; n < mat->size/2; n++)
         {
-            double complex arg = (k * m / (double)mat->size) + (l * n / (double)mat->size);
+            double complex arg = (k * m / ((double)mat->size/2)) + (l * n / ((double)mat->size/2));
             double complex exponent = cexp(-2.0I * M_PI * arg);
-            element += mat->mat[m][n] * exponent;
+            element +=  (mat->mat[2*m][2*n] * exponent) +                       // calculate even row and even column
+                        (mat->mat[2*m][2*n+1] * exponent * var_even_odd) +      // calculate even row and odd column
+                        (mat->mat[2*m+1][2*n] * exponent * var_odd_even) +      // calculate odd row and even column
+                        (mat->mat[2*m+1][2*n+1] * exponent * var_odd_odd);      // calculate odd row and odd column
         }
+
     }
+
     return element / (double)(mat->size * mat->size);
 }
  
@@ -104,7 +134,7 @@ int main(int argc, char **argv)
     {
         for (int l = 0; l < source.size; l++)
         {
-            local_arr[k % local_size][l] = dft(&source, k, l);
+            local_arr[k % local_size][l] = fft(&source, k, l);
         }
     }
  
