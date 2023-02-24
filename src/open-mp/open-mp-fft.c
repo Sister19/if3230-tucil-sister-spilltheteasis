@@ -1,17 +1,18 @@
 // TUBES SISTER 13520002 OPENMP
-// serial.c
+// open-mp-fft.c
  
 // how to run
-// > gcc serial.c -o serial -lm
-// > ./serial
+// > gcc open-mp-fft.c --openmp -o open-mp-fft -lm
+// > ./open-mp-fft
  
 // how to measure time
 // ex testcase.txt already created, create empty output.txt
-// > time ./serial < 128.txt > output.txt
+// > time ./open-mp-fft < 128.txt > output.txt
 
-#include <complex.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <complex.h>
 #include <math.h>
 #include <time.h>
 
@@ -34,8 +35,8 @@ void readMatrix(struct Matrix *m) {
             scanf("%lf", &(m->mat[i][j]));
 }
 
-double complex fft(struct Matrix *mat, int k, int l) {
-
+double complex fft(struct Matrix *mat, int k, int l) 
+{
     // Rumus 2D FFT
     // F[k,l] = 1/MN * { 
     // sum(sum(f[m,n] * e^((-2*pi*i) * (k*m/M + l*n/N))) +                              for calculate even row and even column
@@ -62,16 +63,20 @@ double complex fft(struct Matrix *mat, int k, int l) {
     double complex var_odd_odd  = cexp(-2.0I * M_PI * arg_odd_odd);
 
     double complex element = 0.0;
+
+    // Parallelize the loop
+    // Set reduction for element
+    #pragma omp parallel for reduction(+:element)
     for (int m = 0; m < mat->size/2; m++)
     {
         for (int n = 0; n < mat->size/2; n++)
         {
             double complex arg = (k * m / ((double)mat->size/2)) + (l * n / ((double)mat->size/2));
             double complex exponent = cexp(-2.0I * M_PI * arg);
-            element +=  (mat->mat[2*m][2*n] * exponent) +                       // calculate even row and even column
-                        (mat->mat[2*m][2*n+1] * exponent * var_even_odd) +      // calculate even row and odd column 
-                        (mat->mat[2*m+1][2*n] * exponent * var_odd_even) +      // calculate odd row and even column
-                        (mat->mat[2*m+1][2*n+1] * exponent * var_odd_odd);      // calculate odd row and odd column
+            element +=  (mat->mat[2*m][2*n] * exponent) +                       // even row and even column
+                        (mat->mat[2*m][2*n+1] * exponent * var_even_odd) +      // even row and odd column
+                        (mat->mat[2*m+1][2*n] * exponent * var_odd_even) +      // odd row and even column
+                        (mat->mat[2*m+1][2*n+1] * exponent * var_odd_odd);      // odd row and odd column
         }
 
     }
@@ -79,35 +84,45 @@ double complex fft(struct Matrix *mat, int k, int l) {
     return element / (double)(mat->size * mat->size);
 }
 
-
-
-int main(void) {
-    struct Matrix     source;
-    struct FreqMatrix freq_domain;
-    clock_t start_time, end_time;
-
-    readMatrix(&source);
-    freq_domain.size = source.size;
-    
-    // start_time = clock();
-    for (int k = 0; k < source.size; k++)
-        for (int l = 0; l < source.size; l++)
-            freq_domain.mat[k][l] = fft(&source, k, l);
-    // end_time = clock();
-    
+void printFreqMatrix(struct FreqMatrix *m)
+{
     double complex sum = 0.0;
-    for (int k = 0; k < source.size; k++) {
-        for (int l = 0; l < source.size; l++) {
-            double complex el = freq_domain.mat[k][l];
+    for (int i = 0; i < m->size; i++)
+    {
+        for (int j = 0; j < m->size; j++)
+        {
+            double complex el = m->mat[i][j];
             printf("(%lf, %lf) ", creal(el), cimag(el));
             sum += el;
         }
         printf("\n");
     }
-    
-    sum /= source.size;
+    sum /= m->size;
     printf("Average : (%lf, %lf)\n", creal(sum), cimag(sum));
-    // printf("Elapsed time : %lf\n", (double)(end_time - start_time) / CLOCKS_PER_SEC);
+    
+}
+
+int main(void) {
+    struct Matrix     source;
+    struct FreqMatrix freq_domain;
+
+    readMatrix(&source);
+    freq_domain.size = source.size;
+    
+    // Set the number of threads
+    omp_set_num_threads(4);
+
+    // Parallelize the loop 
+    // Set private variables and shared variables
+    int k, l;
+    #pragma omp parallel for private(k, l) shared(source, freq_domain)
+    for (k = 0; k < source.size; k++) {
+        for (l = 0; l < source.size; l++) {
+            freq_domain.mat[k][l] = fft(&source, k, l);  
+        }
+    }
+
+    printFreqMatrix(&freq_domain);
 
     return 0;
 }
