@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <complex.h>
 #include <math.h>
-#include <time.h>
 
 #define MAX_N 512
 
@@ -39,12 +38,13 @@ double complex dft(struct Matrix *mat, int k, int l)
 {
     double complex element = 0.0;
 
+    int m, n;
     // Parallelize the loop
     // Set reduction for element
     #pragma omp parallel for reduction(+:element)
-    for (int m = 0; m < mat->size; m++)
+    for (m = 0; m < mat->size; m++)
     {
-        for (int n = 0; n < mat->size; n++)
+        for (n = 0; n < mat->size; n++)
         {
             double complex arg = (k * m / (double)mat->size) + (l * n / (double)mat->size);
             double complex exponent = cexp(-2.0I * M_PI * arg);
@@ -78,9 +78,6 @@ int main(void) {
 
     readMatrix(&source);
     freq_domain.size = source.size;
-    
-    // Set the number of threads
-    omp_set_num_threads(4);
 
     // Parallelize the loop 
     // Set private variables and shared variables

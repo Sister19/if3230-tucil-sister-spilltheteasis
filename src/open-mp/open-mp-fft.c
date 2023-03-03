@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <complex.h>
 #include <math.h>
-#include <time.h>
 
 #define MAX_N 512
 
@@ -108,9 +107,6 @@ int main(void) {
 
     readMatrix(&source);
     freq_domain.size = source.size;
-    
-    // Set the number of threads
-    omp_set_num_threads(4);
 
     // Parallelize the loop 
     // Set private variables and shared variables
